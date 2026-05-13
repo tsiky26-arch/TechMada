@@ -1,0 +1,1 @@
+__ci_last_regenerate|i:1778660778;_ci_previous_url|s:37:"http://localhost:8080/index.php/login";auth_error|s:31:"Email ou mot de passe invalide.";__ci_vars|a:2:{s:10:"auth_error";s:3:"old";s:13:"_ci_old_input";s:3:"old";}_ci_old_input|a:2:{s:3:"get";a:0:{}s:4:"post";a:2:{s:5:"email";s:19:"employe@techmada.mg";s:8:"password";s:4:"1234";}}

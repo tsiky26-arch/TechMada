@@ -13,25 +13,14 @@ class EmployeeAuthController extends BaseController
      *
      * @var list<string>
      */
-    private array $allowedRoles = ['employe', 'manager', 'rh'];
+    private array $allowedRoles = ['admin', 'employe', 'manager', 'rh'];
 
     public function showLogin(): string
     {
-        $error = session()->getFlashdata('auth_error');
-
-        return '
-            <h1>Connexion Employe</h1>
-            ' . ($error ? '<p style="color:red;">' . esc($error) . '</p>' : '') . '
-            <form method="post" action="' . site_url('employee/login') . '">
-                <label for="email">Email</label><br>
-                <input id="email" type="email" name="email" required><br><br>
-
-                <label for="password">Mot de passe</label><br>
-                <input id="password" type="password" name="password" required><br><br>
-
-                <button type="submit">Se connecter</button>
-            </form>
-        ';
+        return view('auth/login', [
+            'error' => session()->getFlashdata('auth_error'),
+            'email' => old('email', 'employe@techmada.mg'),
+        ]);
     }
 
     public function login()
@@ -42,7 +31,7 @@ class EmployeeAuthController extends BaseController
         if ($email === '' || $password === '') {
             session()->setFlashdata('auth_error', 'Email et mot de passe requis.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $employeModel = new EmployeModel();
@@ -51,14 +40,14 @@ class EmployeeAuthController extends BaseController
         if (! $employee || (int) ($employee['actif'] ?? 0) !== 1) {
             session()->setFlashdata('auth_error', 'Compte introuvable ou inactif.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $role = strtolower(trim((string) ($employee['role'] ?? '')));
         if (! in_array($role, $this->allowedRoles, true)) {
             session()->setFlashdata('auth_error', 'Role non autorise pour la connexion.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $storedPassword = (string) ($employee['password'] ?? '');
@@ -67,7 +56,7 @@ class EmployeeAuthController extends BaseController
         if (! $isValidPassword) {
             session()->setFlashdata('auth_error', 'Email ou mot de passe invalide.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         session()->regenerate();
@@ -79,28 +68,64 @@ class EmployeeAuthController extends BaseController
             'employee_role'      => $role,
         ]);
 
-        return redirect()->to(site_url('employee/dashboard'));
+        return redirect()->to('/dashboard');
     }
 
     public function dashboard()
     {
         if (! session()->get('employee_logged_in')) {
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login');
         }
 
-        $email = (string) session()->get('employee_email');
-        $nom = (string) session()->get('employee_nom');
-        $role = (string) session()->get('employee_role');
+        $db = db_connect();
+        $employeeId = (int) session()->get('employee_id');
+        $currentYear = (int) date('Y');
 
-        return '
-            <h1>Espace Employe</h1>
-            <p>Nom: ' . esc($nom) . '</p>
-            <p>Connecte en tant que: ' . esc($email) . '</p>
-            <p>Role: ' . esc($role) . '</p>
-            <form method="post" action="' . site_url('employee/logout') . '">
-                <button type="submit">Se deconnecter</button>
-            </form>
-        ';
+        $soldes = $db->table('Soldes s')
+            ->select('s.*, t.libelle AS type_conge, (s.jours_attribues - s.jours_pris) AS jours_restants')
+            ->join('Types_Conge t', 't.id = s.type_conge_id')
+            ->where('s.employe_id', $employeeId)
+            ->where('s.annee', $currentYear)
+            ->orderBy('t.libelle', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $demandes = $db->table('Conges c')
+            ->select('c.*, t.libelle AS type_conge')
+            ->join('Types_Conge t', 't.id = c.type_conge_id')
+            ->where('c.employe_id', $employeeId)
+            ->orderBy('c.created_at', 'DESC')
+            ->limit(5)
+            ->get()
+            ->getResultArray();
+
+        $statsRows = $db->table('Conges')
+            ->select('statut, COUNT(*) AS total')
+            ->where('employe_id', $employeeId)
+            ->groupBy('statut')
+            ->get()
+            ->getResultArray();
+
+        $stats = ['en_attente' => 0, 'approuve' => 0, 'refuse' => 0, 'annule' => 0];
+        foreach ($statsRows as $row) {
+            $stats[(string) $row['statut']] = (int) $row['total'];
+        }
+
+        $totalRestant = array_reduce(
+            $soldes,
+            static fn (float $carry, array $solde): float => $carry + (float) $solde['jours_restants'],
+            0.0
+        );
+
+        return view('employee/dashboard', [
+            'email' => (string) session()->get('employee_email'),
+            'nom' => (string) session()->get('employee_nom'),
+            'role' => (string) session()->get('employee_role'),
+            'soldes' => $soldes,
+            'demandes' => $demandes,
+            'stats' => $stats,
+            'totalRestant' => $totalRestant,
+        ]);
     }
 
     public function logout()
@@ -114,6 +139,6 @@ class EmployeeAuthController extends BaseController
         ]);
         session()->regenerate();
 
-        return redirect()->to(site_url('employee/login'));
+        return redirect()->to('/login');
     }
 }
