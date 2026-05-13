@@ -6,17 +6,40 @@ use CodeIgniter\I18n\Time;
 
 class EmployeeController extends BaseController
 {
-    private function guardEmployee()
+    private function guardDashboard()
     {
         if (! session()->get('employee_logged_in')) {
             return redirect()->to(site_url('employee/login'));
         }
 
-        if ((string) session()->get('employee_role') !== 'employe') {
-            if ((string) session()->get('employee_role') === 'admin') {
-                return redirect()->to(site_url('admin/dashboard'));
-            }
+        $role = (string) session()->get('employee_role');
+        if ($role === 'admin') {
+            return redirect()->to(site_url('admin/dashboard'));
+        }
 
+        if (! in_array($role, ['employe', 'rh'], true)) {
+            return redirect()->to(site_url('employee/login'));
+        }
+
+        return null;
+    }
+
+    private function guardEmployeeActions()
+    {
+        if (! session()->get('employee_logged_in')) {
+            return redirect()->to(site_url('employee/login'));
+        }
+
+        $role = (string) session()->get('employee_role');
+        if ($role === 'admin') {
+            return redirect()->to(site_url('admin/dashboard'));
+        }
+
+        if ($role === 'rh') {
+            return redirect()->to(site_url('rh'));
+        }
+
+        if ($role !== 'employe') {
             return redirect()->to(site_url('employee/login'));
         }
 
@@ -25,113 +48,78 @@ class EmployeeController extends BaseController
 
     public function dashboard()
     {
-        if ($guard = $this->guardEmployee()) {
+        if ($guard = $this->guardDashboard()) {
             return $guard;
         }
 
         $employeeId = (int) session()->get('employee_id');
         $db = db_connect();
-        $types = $db->table('Types_Conge')->orderBy('libelle', 'ASC')->get()->getResultArray();
+        $role = (string) session()->get('employee_role');
+
+        $statsRows = $db->table('Conges')
+            ->select('statut, COUNT(*) AS total')
+            ->where('employe_id', $employeeId)
+            ->groupBy('statut')
+            ->get()
+            ->getResultArray();
+
+        $stats = [
+            'en_attente' => 0,
+            'approuve'   => 0,
+            'refuse'     => 0,
+            'annule'     => 0,
+        ];
+        foreach ($statsRows as $row) {
+            $key = (string) ($row['statut'] ?? '');
+            if ($key !== '' && array_key_exists($key, $stats)) {
+                $stats[$key] = (int) $row['total'];
+            }
+        }
+
+        $currentYear = (int) date('Y');
+        $types = $db->table('Types_Conge')
+            ->select('id, libelle')
+            ->orderBy('libelle', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $soldes = $db->table('Soldes s')
+            ->select('t.libelle AS type_conge, s.jours_attribues, s.jours_pris, s.jours_restants')
+            ->join('Types_Conge t', 't.id = s.type_conge_id')
+            ->where('s.employe_id', $employeeId)
+            ->where('s.annee', $currentYear)
+            ->orderBy('t.libelle', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $totalRestant = 0.0;
+        foreach ($soldes as $solde) {
+            $totalRestant += (float) ($solde['jours_restants'] ?? 0);
+        }
+
         $demandes = $db->table('Conges c')
-            ->select('c.id, c.date_debut, c.date_fin, c.nb_jours, c.motif, c.statut, c.created_at, t.libelle AS type_libelle')
+            ->select('c.id, t.libelle AS type_conge, c.date_debut, c.date_fin, c.nb_jours, c.statut')
             ->join('Types_Conge t', 't.id = c.type_conge_id')
             ->where('c.employe_id', $employeeId)
             ->orderBy('c.created_at', 'DESC')
             ->get()
             ->getResultArray();
 
-        $soldes = $db->table('Soldes s')
-            ->select('s.annee, t.libelle, s.jours_attribues, s.jours_pris, s.jours_restants')
-            ->join('Types_Conge t', 't.id = s.type_conge_id')
-            ->where('s.employe_id', $employeeId)
-            ->orderBy('s.annee', 'DESC')
-            ->orderBy('t.libelle', 'ASC')
-            ->get()
-            ->getResultArray();
-
-        $typeOptions = '';
-        foreach ($types as $type) {
-            $typeOptions .= '<option value="' . (int) $type['id'] . '">' . esc((string) $type['libelle']) . '</option>';
-        }
-
-        $demandesRows = '';
-        foreach ($demandes as $demande) {
-            $action = '';
-            if ((string) $demande['statut'] === 'en_attente') {
-                $action = '<form method="post" action="' . site_url('employee/conges/' . (int) $demande['id'] . '/cancel') . '">
-                    <button type="submit">Annuler</button>
-                </form>';
-            }
-
-            $demandesRows .= '<tr>'
-                . '<td>' . (int) $demande['id'] . '</td>'
-                . '<td>' . esc((string) $demande['type_libelle']) . '</td>'
-                . '<td>' . esc((string) $demande['date_debut']) . ' -> ' . esc((string) $demande['date_fin']) . '</td>'
-                . '<td>' . esc((string) $demande['nb_jours']) . '</td>'
-                . '<td>' . esc((string) $demande['statut']) . '</td>'
-                . '<td>' . esc((string) ($demande['motif'] ?? '')) . '</td>'
-                . '<td>' . $action . '</td>'
-                . '</tr>';
-        }
-
-        $soldesRows = '';
-        foreach ($soldes as $solde) {
-            $soldesRows .= '<tr>'
-                . '<td>' . esc((string) $solde['annee']) . '</td>'
-                . '<td>' . esc((string) $solde['libelle']) . '</td>'
-                . '<td>' . esc((string) $solde['jours_attribues']) . '</td>'
-                . '<td>' . esc((string) $solde['jours_pris']) . '</td>'
-                . '<td>' . esc((string) $solde['jours_restants']) . '</td>'
-                . '</tr>';
-        }
-
-        $error = session()->getFlashdata('employee_error');
-        $success = session()->getFlashdata('employee_success');
-
-        return '
-            <h1>Espace Employe</h1>
-            <p>Bienvenue, ' . esc((string) session()->get('employee_nom')) . '</p>
-            ' . ($error ? '<p style="color:red;">' . esc($error) . '</p>' : '') . '
-            ' . ($success ? '<p style="color:green;">' . esc($success) . '</p>' : '') . '
-
-            <h2>Soumettre une demande de conge</h2>
-            <form method="post" action="' . site_url('employee/conges') . '">
-                <label>Type de conge</label><br>
-                <select name="type_conge_id" required>' . $typeOptions . '</select><br>
-                <label>Date debut</label><br>
-                <input type="date" name="date_debut" required><br>
-                <label>Date fin</label><br>
-                <input type="date" name="date_fin" required><br>
-                <label>Motif</label><br>
-                <textarea name="motif"></textarea><br>
-                <button type="submit">Soumettre</button>
-            </form>
-
-            <h2>Mes demandes</h2>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead>
-                    <tr><th>ID</th><th>Type</th><th>Periode</th><th>Jours</th><th>Statut</th><th>Motif</th><th>Action</th></tr>
-                </thead>
-                <tbody>' . $demandesRows . '</tbody>
-            </table>
-
-            <h2>Mon solde de conges</h2>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead>
-                    <tr><th>Annee</th><th>Type</th><th>Attribues</th><th>Pris</th><th>Restants</th></tr>
-                </thead>
-                <tbody>' . $soldesRows . '</tbody>
-            </table>
-
-            <form method="post" action="' . site_url('employee/logout') . '">
-                <button type="submit">Se deconnecter</button>
-            </form>
-        ';
+        return view('employee/dashboard', [
+            'email'       => (string) session()->get('employee_email'),
+            'nom'         => (string) session()->get('employee_nom'),
+            'role'        => $role,
+            'stats'       => $stats,
+            'types'       => $types,
+            'soldes'      => $soldes,
+            'demandes'    => $demandes,
+            'totalRestant'=> $totalRestant,
+        ]);
     }
 
     public function createConge()
     {
-        if ($guard = $this->guardEmployee()) {
+        if ($guard = $this->guardEmployeeActions()) {
             return $guard;
         }
 
@@ -146,12 +134,12 @@ class EmployeeController extends BaseController
             return redirect()->to(site_url('employee/espace'));
         }
 
-        if ($dateDebut >= $dateFin) {
-            session()->setFlashdata('employee_error', 'La date de debut doit etre strictement inferieure a la date de fin.');
+        if ($dateDebut > $dateFin) {
+            session()->setFlashdata('employee_error', 'La date de debut doit etre inferieure ou egale a la date de fin.');
             return redirect()->to(site_url('employee/espace'));
         }
 
-        $nbJours = Time::parse($dateDebut)->difference(Time::parse($dateFin))->getDays();
+        $nbJours = Time::parse($dateDebut)->difference(Time::parse($dateFin))->getDays() + 1;
         if ($nbJours <= 0) {
             session()->setFlashdata('employee_error', 'Nombre de jours invalide.');
             return redirect()->to(site_url('employee/espace'));
@@ -205,7 +193,7 @@ class EmployeeController extends BaseController
 
     public function cancelConge(int $congeId)
     {
-        if ($guard = $this->guardEmployee()) {
+        if ($guard = $this->guardEmployeeActions()) {
             return $guard;
         }
 

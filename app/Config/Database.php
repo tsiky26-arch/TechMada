@@ -25,25 +25,15 @@ class Database extends Config
      * @var array<string, mixed>
      */
     public array $default = [
-        'DSN'          => '',
-        'hostname'     => '',
-        'username'     => '',
-        'password'     => '',
         'database'     => WRITEPATH . 'Conges.db',
-        
+        'DBDriver'     => 'SQLite3',
         'DBPrefix'     => '',
-        'pConnect'     => false,
         'DBDebug'      => true,
-        'charset'      => 'utf8mb4',
-        'DBCollat'     => 'utf8mb4_general_ci',
         'swapPre'      => '',
-        'encrypt'      => false,
-        'compress'     => false,
-        'strictOn'     => false,
         'failover'     => [],
-        'port'         => '',
-        'numberNative' => false,
-        'foundRows'    => false,
+        'foreignKeys'  => true,
+        'busyTimeout'  => 1000,
+        'synchronous'  => null,
         'dateFormat'   => [
             'date'     => 'Y-m-d',
             'datetime' => 'Y-m-d H:i:s',

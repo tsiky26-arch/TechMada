@@ -13,25 +13,14 @@ class EmployeeAuthController extends BaseController
      *
      * @var list<string>
      */
-    private array $allowedRoles = ['employe', 'rh', 'admin'];
+    private array $allowedRoles = ['admin', 'employe', 'manager', 'rh'];
 
     public function showLogin(): string
     {
-        $error = session()->getFlashdata('auth_error');
-
-        return '
-            <h1>Connexion Employe</h1>
-            ' . ($error ? '<p style="color:red;">' . esc($error) . '</p>' : '') . '
-            <form method="post" action="' . site_url('employee/login') . '">
-                <label for="email">Email</label><br>
-                <input id="email" type="email" name="email" required><br><br>
-
-                <label for="password">Mot de passe</label><br>
-                <input id="password" type="password" name="password" required><br><br>
-
-                <button type="submit">Se connecter</button>
-            </form>
-        ';
+        return view('auth/login', [
+            'error' => session()->getFlashdata('auth_error'),
+            'email' => old('email', 'employe@techmada.mg'),
+        ]);
     }
 
     public function login()
@@ -42,7 +31,7 @@ class EmployeeAuthController extends BaseController
         if ($email === '' || $password === '') {
             session()->setFlashdata('auth_error', 'Email et mot de passe requis.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $employeModel = new EmployeModel();
@@ -51,14 +40,14 @@ class EmployeeAuthController extends BaseController
         if (! $employee || (int) ($employee['actif'] ?? 0) !== 1) {
             session()->setFlashdata('auth_error', 'Compte introuvable ou inactif.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $role = strtolower(trim((string) ($employee['role'] ?? '')));
         if (! in_array($role, $this->allowedRoles, true)) {
             session()->setFlashdata('auth_error', 'Role non autorise pour la connexion.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         $storedPassword = (string) ($employee['password'] ?? '');
@@ -67,7 +56,7 @@ class EmployeeAuthController extends BaseController
         if (! $isValidPassword) {
             session()->setFlashdata('auth_error', 'Email ou mot de passe invalide.');
 
-            return redirect()->to(site_url('employee/login'));
+            return redirect()->to('/login')->withInput();
         }
 
         session()->regenerate();
@@ -84,15 +73,31 @@ class EmployeeAuthController extends BaseController
         }
 
         if ($role === 'rh') {
-            return redirect()->to(site_url('employee/dashboard'));
+            return redirect()->to(site_url('dashboard'));
         }
 
-        return redirect()->to(site_url('employee/dashboard'));
+        return redirect()->to('/dashboard');
     }
 
     public function dashboard()
     {
-        return redirect()->to(site_url('employee/espace'));
+        if (! session()->get('employee_logged_in')) {
+            return redirect()->to(site_url('employee/login'));
+        }
+
+        $email = (string) session()->get('employee_email');
+        $nom = (string) session()->get('employee_nom');
+        $role = (string) session()->get('employee_role');
+
+        return '
+            <h1>Espace Employe</h1>
+            <p>Nom: ' . esc($nom) . '</p>
+            <p>Connecte en tant que: ' . esc($email) . '</p>
+            <p>Role: ' . esc($role) . '</p>
+            <form method="post" action="' . site_url('employee/logout') . '">
+                <button type="submit">Se deconnecter</button>
+            </form>
+        ';
     }
 
     public function logout()
@@ -106,6 +111,6 @@ class EmployeeAuthController extends BaseController
         ]);
         session()->regenerate();
 
-        return redirect()->to(site_url('employee/login'));
+        return redirect()->to('/login');
     }
 }

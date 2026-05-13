@@ -35,28 +35,26 @@ class AdminController extends BaseController
         $pendingCount = (int) $db->table('Conges')->where('statut', 'en_attente')->countAllResults();
         $employeeCount = (int) $db->table('Employes')->countAllResults();
         $activeCount = (int) $db->table('Employes')->where('actif', 1)->countAllResults();
-        $monthlyAbsences = (int) $db->table('Conges')
+        $departementCount = (int) $db->table('Departements')->countAllResults();
+        $leaveTypeCount = (int) $db->table('Types_Conge')->countAllResults();
+        $monthlyRequests = (int) $db->table('Conges')
             ->where('statut', 'approuve')
             ->where('strftime("%Y-%m", date_debut) =', date('Y-m'))
             ->countAllResults();
-        $message = session()->getFlashdata('admin_success');
+        $approvedCount = $monthlyRequests;
 
-        return '
-            <h1>Espace Administrateur</h1>
-            ' . ($message ? '<p style="color:green;">' . esc($message) . '</p>' : '') . '
-            <p>Bienvenue, ' . esc((string) session()->get('employee_nom')) . '</p>
-            <p>Total employes: ' . $employeeCount . '</p>
-            <p>Employes actifs: ' . $activeCount . '</p>
-            <p>Demandes en attente: ' . $pendingCount . '</p>
-            <p>Absences approuvees du mois: ' . $monthlyAbsences . '</p>
-            <p><a href="' . site_url('admin/employees') . '">Voir les employes</a></p>
-            <p><a href="' . site_url('admin/departments') . '">Gerer les departements</a></p>
-            <p><a href="' . site_url('admin/leave-types') . '">Gerer les types de conge</a></p>
-            <p><a href="' . site_url('admin/conges') . '">Gerer les demandes de conge</a></p>
-            <form method="post" action="' . site_url('employee/logout') . '">
-                <button type="submit">Se deconnecter</button>
-            </form>
-        ';
+        return view('admin/dashboard', [
+            'email' => (string) session()->get('employee_email'),
+            'nom' => (string) session()->get('employee_nom'),
+            'stats' => [
+                'active_employees' => $activeCount,
+                'pending_requests' => $pendingCount,
+                'approved_requests' => $approvedCount,
+                'departments' => $departementCount,
+                'leave_types' => $leaveTypeCount,
+                'monthly_requests' => $monthlyRequests,
+            ],
+        ]);
     }
 
     public function employees()
@@ -66,52 +64,12 @@ class AdminController extends BaseController
         }
 
         $employees = (new EmployeModel())->orderBy('id', 'DESC')->findAll();
-        $rows = '';
-        foreach ($employees as $employee) {
-            $employeeId = (int) $employee['id'];
-            $isActive = (int) $employee['actif'] === 1;
-            $actionForm = $isActive
-                ? '<form method="post" action="' . site_url('admin/employees/' . $employeeId . '/deactivate') . '"><button type="submit">Desactiver</button></form>'
-                : '<form method="post" action="' . site_url('admin/employees/' . $employeeId . '/activate') . '"><button type="submit">Activer</button></form>';
+        $departments = $this->db()->table('Departements')->orderBy('nom', 'ASC')->get()->getResultArray();
 
-            $rows .= '<tr>'
-                . '<td>' . $employeeId . '</td>'
-                . '<td>' . esc((string) $employee['prenom'] . ' ' . (string) $employee['nom']) . '</td>'
-                . '<td>' . esc((string) $employee['email']) . '</td>'
-                . '<td>' . esc((string) $employee['role']) . '</td>'
-                . '<td>' . ($isActive ? 'Oui' : 'Non') . '</td>'
-                . '<td>' . $actionForm . '</td>'
-                . '</tr>';
-        }
-
-        return '
-            <h1>Liste des employes</h1>
-            <p><a href="' . site_url('admin/dashboard') . '">Retour dashboard admin</a></p>
-            <h2>Creer un employe</h2>
-            <form method="post" action="' . site_url('admin/employees') . '">
-                <label>Nom</label><br><input name="nom" required><br>
-                <label>Prenom</label><br><input name="prenom" required><br>
-                <label>Email</label><br><input type="email" name="email" required><br>
-                <label>Mot de passe</label><br><input type="password" name="password" required><br>
-                <label>Role</label><br><input name="role" value="employe" required><br>
-                <label>Departement ID</label><br><input type="number" name="departement_id"><br>
-                <label>Date embauche</label><br><input type="date" name="date_embauche" required><br>
-                <button type="submit">Creer</button>
-            </form>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nom</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Actif</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>' . $rows . '</tbody>
-            </table>
-        ';
+        return view('admin/employees', [
+            'employees' => $employees,
+            'departments' => $departments,
+        ]);
     }
 
     public function createEmployee()
@@ -175,49 +133,23 @@ class AdminController extends BaseController
             ->get()
             ->getResultArray();
 
-        $rows = '';
+        $demandes = [];
         foreach ($rowsData as $row) {
-            $actions = '';
-            if ((string) $row['statut'] === 'en_attente') {
-                $actions = '
-                    <form method="post" action="' . site_url('admin/conges/' . (int) $row['id'] . '/statut') . '">
-                        <button type="submit" name="statut" value="approuve">Approuver</button>
-                        <button type="submit" name="statut" value="refuse">Refuser</button>
-                    </form>
-                ';
-            }
-
-            $rows .= '<tr>'
-                . '<td>' . (int) $row['id'] . '</td>'
-                . '<td>' . esc((string) $row['prenom'] . ' ' . (string) $row['nom']) . '</td>'
-                . '<td>' . esc((string) $row['libelle']) . '</td>'
-                . '<td>' . esc((string) $row['date_debut']) . ' -> ' . esc((string) $row['date_fin']) . '</td>'
-                . '<td>' . esc((string) $row['nb_jours']) . '</td>'
-                . '<td>' . esc((string) $row['statut']) . '</td>'
-                . '<td>' . esc((string) ($row['motif'] ?? '')) . '</td>'
-                . '<td>' . $actions . '</td>'
-                . '</tr>';
+            $demandes[] = [
+                'id' => (int) $row['id'],
+                'employe_nom' => $row['prenom'] . ' ' . $row['nom'],
+                'type_conge' => $row['libelle'],
+                'date_debut' => $row['date_debut'],
+                'date_fin' => $row['date_fin'],
+                'nb_jours' => $row['nb_jours'],
+                'statut' => $row['statut'],
+                'motif' => $row['motif'] ?? '',
+            ];
         }
 
-        return '
-            <h1>Gestion des demandes de conge</h1>
-            <p><a href="' . site_url('admin/dashboard') . '">Retour dashboard admin</a></p>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Employe</th>
-                        <th>Type</th>
-                        <th>Periode</th>
-                        <th>Jours</th>
-                        <th>Statut</th>
-                        <th>Motif</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>' . $rows . '</tbody>
-            </table>
-        ';
+        return view('admin/conges', [
+            'demandes' => $demandes,
+        ]);
     }
 
     public function updateCongeStatut(int $congeId)
@@ -231,14 +163,62 @@ class AdminController extends BaseController
             return redirect()->to(site_url('admin/conges'));
         }
 
-        $this->db()->table('Conges')
+        $db = $this->db();
+        $conge = $db->table('Conges')
+            ->where('id', $congeId)
+            ->get()
+            ->getRowArray();
+
+        if (! $conge) {
+            session()->setFlashdata('admin_success', 'Demande introuvable.');
+            return redirect()->to(site_url('admin/conges'));
+        }
+
+        if ((string) $conge['statut'] !== 'en_attente') {
+            session()->setFlashdata('admin_success', 'Seules les demandes en attente peuvent etre traitees ici.');
+            return redirect()->to(site_url('admin/conges'));
+        }
+
+        if ($newStatut === 'approuve') {
+            $annee = (int) date('Y', strtotime((string) $conge['date_debut']));
+            $solde = $db->table('Soldes')
+                ->where('employe_id', (int) $conge['employe_id'])
+                ->where('type_conge_id', (int) $conge['type_conge_id'])
+                ->where('annee', $annee)
+                ->get()
+                ->getRowArray();
+
+            if (! $solde) {
+                session()->setFlashdata('admin_success', 'Aucun solde trouve pour approuver cette demande.');
+                return redirect()->to(site_url('admin/conges'));
+            }
+
+            $nbJours = (float) $conge['nb_jours'];
+            $joursPris = (float) $solde['jours_pris'];
+            $joursAttribues = (float) $solde['jours_attribues'];
+
+            if ($joursPris + $nbJours > $joursAttribues) {
+                session()->setFlashdata('admin_success', 'Solde insuffisant pour approuver cette demande.');
+                return redirect()->to(site_url('admin/conges'));
+            }
+
+            $db->transStart();
+            $db->table('Soldes')
+                ->where('id', (int) $solde['id'])
+                ->update(['jours_pris' => $joursPris + $nbJours]);
+        } else {
+            $db->transStart();
+        }
+
+        $db->table('Conges')
             ->where('id', $congeId)
             ->update([
                 'statut' => $newStatut,
                 'traite_par' => (int) session()->get('employee_id'),
             ]);
-        session()->setFlashdata('admin_success', 'Statut de la demande mis a jour.');
+        $db->transComplete();
 
+        session()->setFlashdata('admin_success', 'Statut de la demande mis a jour.');
         return redirect()->to(site_url('admin/conges'));
     }
 
@@ -249,24 +229,10 @@ class AdminController extends BaseController
         }
 
         $departments = $this->db()->table('Departements')->orderBy('id', 'DESC')->get()->getResultArray();
-        $rows = '';
-        foreach ($departments as $department) {
-            $rows .= '<tr><td>' . (int) $department['id'] . '</td><td>' . esc((string) $department['nom']) . '</td><td>' . esc((string) ($department['description'] ?? '')) . '</td></tr>';
-        }
 
-        return '
-            <h1>Departements</h1>
-            <p><a href="' . site_url('admin/dashboard') . '">Retour dashboard admin</a></p>
-            <form method="post" action="' . site_url('admin/departments') . '">
-                <label>Nom</label><br><input name="nom" required><br>
-                <label>Description</label><br><textarea name="description"></textarea><br>
-                <button type="submit">Ajouter</button>
-            </form>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead><tr><th>ID</th><th>Nom</th><th>Description</th></tr></thead>
-                <tbody>' . $rows . '</tbody>
-            </table>
-        ';
+        return view('admin/departments', [
+            'departments' => $departments,
+        ]);
     }
 
     public function createDepartment()
@@ -291,25 +257,10 @@ class AdminController extends BaseController
         }
 
         $types = $this->db()->table('Types_Conge')->orderBy('id', 'DESC')->get()->getResultArray();
-        $rows = '';
-        foreach ($types as $type) {
-            $rows .= '<tr><td>' . (int) $type['id'] . '</td><td>' . esc((string) $type['libelle']) . '</td><td>' . esc((string) $type['jours_annuels']) . '</td><td>' . ((int) $type['deductible'] === 1 ? 'Oui' : 'Non') . '</td></tr>';
-        }
 
-        return '
-            <h1>Types de conge</h1>
-            <p><a href="' . site_url('admin/dashboard') . '">Retour dashboard admin</a></p>
-            <form method="post" action="' . site_url('admin/leave-types') . '">
-                <label>Libelle</label><br><input name="libelle" required><br>
-                <label>Jours annuels</label><br><input type="number" min="0" name="jours_annuels" required><br>
-                <label>Deductible (0 ou 1)</label><br><input type="number" min="0" max="1" name="deductible" value="1" required><br>
-                <button type="submit">Ajouter</button>
-            </form>
-            <table border="1" cellpadding="6" cellspacing="0">
-                <thead><tr><th>ID</th><th>Libelle</th><th>Jours annuels</th><th>Deductible</th></tr></thead>
-                <tbody>' . $rows . '</tbody>
-            </table>
-        ';
+        return view('admin/leave-types', [
+            'types' => $types,
+        ]);
     }
 
     public function createLeaveType()

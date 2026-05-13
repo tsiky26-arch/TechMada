@@ -1,0 +1,1 @@
+__ci_last_regenerate|i:1778662649;employee_logged_in|b:1;employee_id|i:3;employee_email|s:19:"employe@techmada.mg";employee_nom|s:10:"Soa Rakoto";employee_role|s:7:"employe";_ci_previous_url|s:41:"http://localhost:8080/index.php/dashboard";employee_error|s:45:"Aucun solde initialise pour ce type de conge.";__ci_vars|a:1:{s:14:"employee_error";s:3:"old";}
