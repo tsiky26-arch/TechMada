@@ -84,7 +84,7 @@ class EmployeeController extends BaseController
             ->getResultArray();
 
         $soldes = $db->table('Soldes s')
-            ->select('t.libelle AS type_conge, s.jours_attribues, s.jours_pris, s.jours_restants')
+            ->select('t.libelle AS type_conge, s.jours_attribues, s.jours_pris, (s.jours_attribues - s.jours_pris) AS jours_restants')
             ->join('Types_Conge t', 't.id = s.type_conge_id')
             ->where('s.employe_id', $employeeId)
             ->where('s.annee', $currentYear)
