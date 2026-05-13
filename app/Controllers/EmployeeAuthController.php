@@ -13,7 +13,7 @@ class EmployeeAuthController extends BaseController
      *
      * @var list<string>
      */
-    private array $allowedRoles = ['employe', 'manager', 'rh'];
+    private array $allowedRoles = ['employe', 'rh', 'admin'];
 
     public function showLogin(): string
     {
@@ -79,28 +79,20 @@ class EmployeeAuthController extends BaseController
             'employee_role'      => $role,
         ]);
 
+        if ($role === 'admin') {
+            return redirect()->to(site_url('admin/dashboard'));
+        }
+
+        if ($role === 'rh') {
+            return redirect()->to(site_url('employee/dashboard'));
+        }
+
         return redirect()->to(site_url('employee/dashboard'));
     }
 
     public function dashboard()
     {
-        if (! session()->get('employee_logged_in')) {
-            return redirect()->to(site_url('employee/login'));
-        }
-
-        $email = (string) session()->get('employee_email');
-        $nom = (string) session()->get('employee_nom');
-        $role = (string) session()->get('employee_role');
-
-        return '
-            <h1>Espace Employe</h1>
-            <p>Nom: ' . esc($nom) . '</p>
-            <p>Connecte en tant que: ' . esc($email) . '</p>
-            <p>Role: ' . esc($role) . '</p>
-            <form method="post" action="' . site_url('employee/logout') . '">
-                <button type="submit">Se deconnecter</button>
-            </form>
-        ';
+        return redirect()->to(site_url('employee/espace'));
     }
 
     public function logout()
