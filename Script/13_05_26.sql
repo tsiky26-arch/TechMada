@@ -57,3 +57,9 @@ CREATE TABLE IF NOT EXISTS Conges (
     traite_par        INTEGER      REFERENCES Employes(id) ON DELETE SET NULL,
     CHECK (date_fin >= date_debut)
 );
+
+nb_jourrs_restant = jours_attribues - jours_pris;
+
+--A l'application 
+UPDATE Soldes SET jours_pris = jours_pris + $nb_jours WHERE employe_id = $employe_id AND type_conge_id = $type_conge_id AND annee = $annee;
+
