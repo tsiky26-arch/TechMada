@@ -1,0 +1,13 @@
+CRITICAL - 2026-05-13 07:22:58 --> CodeIgniter\Exceptions\InvalidArgumentException: You have not selected a database type to connect to.
+[Method: POST, Route: employee/login]
+in SYSTEMPATH/Database/Database.php on line 56.
+ 1 SYSTEMPATH/Database/Config.php(82): CodeIgniter\Database\Database->load()
+ 2 SYSTEMPATH/Model.php(150): CodeIgniter\Database\Config::connect()
+ 3 APPPATH/Controllers/EmployeeAuthController.php(48): CodeIgniter\Model->__construct()
+ 4 SYSTEMPATH/CodeIgniter.php(951): App\Controllers\EmployeeAuthController->login()
+ 5 SYSTEMPATH/CodeIgniter.php(497): CodeIgniter\CodeIgniter->runController()
+ 6 SYSTEMPATH/CodeIgniter.php(340): CodeIgniter\CodeIgniter->handleRequest()
+ 7 SYSTEMPATH/Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH/Boot.php(68): CodeIgniter\Boot::runCodeIgniter()
+ 9 FCPATH/index.php(59): CodeIgniter\Boot::bootWeb()
+10 SYSTEMPATH/rewrite.php(44): require_once('/home/tsiky/Documents/Projet S4/Si/conge/TechMada/public/index.php')
