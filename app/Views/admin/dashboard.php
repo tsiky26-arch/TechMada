@@ -68,6 +68,60 @@
 
       <div class="grid">
         <div class="card col-6">
+          <div class="section-head">
+            <div>
+              <h2>Conges par mois</h2>
+              <div class="muted">Demandes creees cette annee</div>
+            </div>
+          </div>
+          <?php
+            $maxMonthly = 0;
+            foreach (($monthlyChart ?? []) as $month) {
+                $maxMonthly = max($maxMonthly, (int) $month['total']);
+            }
+          ?>
+          <div class="bar-chart bar-chart-months">
+            <?php foreach (($monthlyChart ?? []) as $month): ?>
+              <?php $height = $maxMonthly > 0 ? max(8, ((int) $month['total'] / $maxMonthly) * 100) : 0; ?>
+              <div class="bar-item">
+                <div class="bar-value"><?= esc((string) $month['total']) ?></div>
+                <div class="bar-track"><span style="height: <?= esc(number_format($height, 2, '.', '')) ?>%"></span></div>
+                <div class="bar-label"><?= esc((string) $month['label']) ?></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+
+        <div class="card col-6">
+          <div class="section-head">
+            <div>
+              <h2>Jours de conge</h2>
+              <div class="muted">Repartition des jours approuves</div>
+            </div>
+          </div>
+          <?php
+            $maxWeekday = 0;
+            foreach (($weekdayChart ?? []) as $weekday) {
+                $maxWeekday = max($maxWeekday, (int) $weekday['total']);
+            }
+          ?>
+          <div class="stat-list">
+            <?php foreach (($weekdayChart ?? []) as $weekday): ?>
+              <?php $percent = $maxWeekday > 0 ? ((int) $weekday['total'] / $maxWeekday) * 100 : 0; ?>
+              <div class="stat-row">
+                <div class="stat-row-label">
+                  <span><?= esc((string) $weekday['label']) ?></span>
+                  <strong><?= esc((string) $weekday['total']) ?></strong>
+                </div>
+                <div class="progress progress-alt"><span style="width: <?= esc(number_format($percent, 2, '.', '')) ?>%"></span></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card col-6">
           <h2>Gestion</h2>
           <div class="actions" style="display: flex; flex-direction: column; gap: 0.75rem;">
             <a href="<?= site_url('admin/conges') ?>" class="btn"><i class="bi bi-inbox"></i> Gerer les demandes</a>

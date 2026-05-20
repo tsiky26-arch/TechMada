@@ -162,7 +162,18 @@ php spark db:seed              # ✅ Doit fonctionner sans erreur
 
 - **ETU003277** : Authentification, Espace Employé, Finition
 - **ETU004196** : Setup & BDD, Espace RH, Back-office Admin
+ ## Suite 
+ Employer:
+ Vue calendrier 
+ -Affichage des conges sous forme de calendrier hebdomadaire interactif
 
+ historique & statistiques 
+ -Nombre total de demandes de conges,par type de conges
+
+ Admin:
+ Tableau de bord enrichi
+ -Graphique sur le nombre de conge par mois
+ -Garphique que les jours(lundi,mardi,...) de conges 
 ---
 
 **Date de livraison** : 13 mai 2026  

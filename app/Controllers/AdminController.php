@@ -42,6 +42,57 @@ class AdminController extends BaseController
             ->where('strftime("%Y-%m", date_debut) =', date('Y-m'))
             ->countAllResults();
         $approvedCount = $monthlyRequests;
+        $currentYear = (int) date('Y');
+
+        $monthlyRows = $db->table('Conges')
+            ->select('CAST(strftime("%m", date_debut) AS INTEGER) AS month_number, COUNT(*) AS total')
+            ->where('strftime("%Y", date_debut) =', (string) $currentYear)
+            ->groupBy('month_number')
+            ->orderBy('month_number', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $monthLabels = ['Jan', 'Fev', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aout', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $monthlyChart = [];
+        foreach ($monthLabels as $index => $label) {
+            $monthlyChart[$index + 1] = [
+                'label' => $label,
+                'total' => 0,
+            ];
+        }
+        foreach ($monthlyRows as $row) {
+            $monthNumber = (int) $row['month_number'];
+            if (isset($monthlyChart[$monthNumber])) {
+                $monthlyChart[$monthNumber]['total'] = (int) $row['total'];
+            }
+        }
+        $monthlyChart = array_values($monthlyChart);
+
+        $weekdayChart = [
+            1 => ['label' => 'Lun', 'total' => 0],
+            2 => ['label' => 'Mar', 'total' => 0],
+            3 => ['label' => 'Mer', 'total' => 0],
+            4 => ['label' => 'Jeu', 'total' => 0],
+            5 => ['label' => 'Ven', 'total' => 0],
+            6 => ['label' => 'Sam', 'total' => 0],
+            7 => ['label' => 'Dim', 'total' => 0],
+        ];
+        $approvedLeaves = $db->table('Conges')
+            ->select('date_debut, date_fin')
+            ->where('statut', 'approuve')
+            ->get()
+            ->getResultArray();
+
+        foreach ($approvedLeaves as $leave) {
+            $start = new \DateTimeImmutable((string) $leave['date_debut']);
+            $end = new \DateTimeImmutable((string) $leave['date_fin']);
+
+            for ($day = $start; $day <= $end; $day = $day->modify('+1 day')) {
+                $weekday = (int) $day->format('N');
+                $weekdayChart[$weekday]['total']++;
+            }
+        }
+        $weekdayChart = array_values($weekdayChart);
 
         return view('admin/dashboard', [
             'email' => (string) session()->get('employee_email'),
@@ -54,6 +105,8 @@ class AdminController extends BaseController
                 'leave_types' => $leaveTypeCount,
                 'monthly_requests' => $monthlyRequests,
             ],
+            'monthlyChart' => $monthlyChart,
+            'weekdayChart' => $weekdayChart,
         ]);
     }
 

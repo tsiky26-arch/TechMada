@@ -105,6 +105,39 @@ class EmployeeController extends BaseController
             ->get()
             ->getResultArray();
 
+        $statsByTypeRows = $db->table('Conges c')
+            ->select('t.libelle AS type_conge, COUNT(*) AS total')
+            ->join('Types_Conge t', 't.id = c.type_conge_id')
+            ->where('c.employe_id', $employeeId)
+            ->groupBy('t.libelle')
+            ->orderBy('t.libelle', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $statsByType = [];
+        foreach ($statsByTypeRows as $row) {
+            $statsByType[] = [
+                'type_conge' => (string) $row['type_conge'],
+                'total' => (int) $row['total'],
+            ];
+        }
+
+        $calendarEvents = [];
+        foreach ($demandes as $demande) {
+            if (in_array((string) $demande['statut'], ['annule', 'refuse'], true)) {
+                continue;
+            }
+
+            $calendarEvents[] = [
+                'id' => (int) $demande['id'],
+                'type_conge' => (string) $demande['type_conge'],
+                'date_debut' => (string) $demande['date_debut'],
+                'date_fin' => (string) $demande['date_fin'],
+                'statut' => (string) $demande['statut'],
+                'nb_jours' => (float) $demande['nb_jours'],
+            ];
+        }
+
         return view('employee/dashboard', [
             'email'       => (string) session()->get('employee_email'),
             'nom'         => (string) session()->get('employee_nom'),
@@ -114,6 +147,8 @@ class EmployeeController extends BaseController
             'soldes'      => $soldes,
             'demandes'    => $demandes,
             'totalRestant'=> $totalRestant,
+            'statsByType' => $statsByType,
+            'calendarEvents' => $calendarEvents,
         ]);
     }
 
